@@ -1,0 +1,73 @@
+# Dependencies
+node_modules/
+.yarn/cache/
+.yarn/unplugged/
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.venv/
+*.egg
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Expo
+.expo/
+
+# React Native
+packages/mobile/ios/Pods/
+packages/mobile/ios/build/
+packages/mobile/android/.gradle/
+packages/mobile/android/app/build/
+packages/mobile/android/build/
+
+# Next.js
+.next/
+out/
+
+# Build outputs
+*.jsbundle
+*.bundle
+
+# Database
+*.db
+*.sqlite3
+
+# ML Models (too large for git)
+packages/backend/data/models/*.pth
+packages/backend/data/models/*.pt
+
+# Uploads
+packages/backend/uploads/
+
+# Test coverage
+coverage/
+htmlcov/
+.coverage
+
+# Misc
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

@@ -1,0 +1,26 @@
+{
+  "name": "klusai",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": {
+    "packages": [
+      "packages/*"
+    ],
+    "nohoist": [
+      "**/react-native",
+      "**/react-native/**"
+    ]
+  },
+  "scripts": {
+    "mobile:ios": "yarn workspace @klusai/mobile ios",
+    "mobile:android": "yarn workspace @klusai/mobile android",
+    "mobile:start": "yarn workspace @klusai/mobile start",
+    "webapp:dev": "cd packages/webapp && npm run dev",
+    "webapp:build": "cd packages/webapp && npm run build",
+    "backend:dev": "cd packages/backend && source .venv/bin/activate && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000",
+    "setup": "bash scripts/setup.sh",
+    "seed": "bash scripts/seed-db.sh",
+    "test": "bash scripts/test.sh",
+    "test:coverage": "bash scripts/test.sh --coverage"
+  }
+}

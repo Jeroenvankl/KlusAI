@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "KlusAI",
+    "slug": "klusai",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "klusai",
+    "userInterfaceStyle": "light",
+    "platforms": [
+      "ios",
+      "android",
+      "web"
+    ],
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-image-picker"
+    ],
+    "ios": {
+      "bundleIdentifier": "com.anonymous.klusai"
+    }
+  }
+}
