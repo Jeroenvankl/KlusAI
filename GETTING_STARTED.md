@@ -1,6 +1,6 @@
 # KlusAI - Aan de slag
 
-KlusAI is een AI-gedreven klusapp voor het plannen, visualiseren en uitvoeren van verbouwingsprojecten. De app combineert beeldsegmentatie (SAM), kleurwetenschap (LAB color space) en AI-advies (Claude) in een React Native mobiele app met een FastAPI Python-backend.
+KlusAI is een AI-gedreven klusapp voor het plannen, visualiseren en uitvoeren van verbouwingsprojecten. De app combineert beeldsegmentatie (SAM), kleurwetenschap (LAB color space) en AI-advies (Google Gemini) in een Next.js webapp met een FastAPI Python-backend.
 
 ---
 
@@ -14,7 +14,7 @@ KlusAI is een AI-gedreven klusapp voor het plannen, visualiseren en uitvoeren va
 - **Xcode** (voor iOS) of **Android Studio** (voor Android)
 
 ### API Keys
-- **Anthropic API key** - Nodig voor AI-functies (kameranalyse, designsuggesties, bouwplannen). Verkrijgbaar op https://console.anthropic.com
+- **Google AI API key** - Nodig voor AI-functies (kameranalyse, designsuggesties, bouwplannen). Verkrijgbaar op https://aistudio.google.com/apikey
 
 ---
 
@@ -39,7 +39,7 @@ Dit doet automatisch:
 cp .env.example packages/backend/.env
 
 # Open en vul je API key in:
-# ANTHROPIC_API_KEY=sk-ant-jouw-key-hier
+# GOOGLE_AI_API_KEY=jouw-google-ai-key-hier
 ```
 
 ### 3. Backend starten
@@ -226,7 +226,8 @@ pip install -r requirements.txt
 ### API key niet ingesteld
 Maak een `.env` bestand aan in `packages/backend/`:
 ```
-ANTHROPIC_API_KEY=sk-ant-jouw-key-hier
+GOOGLE_AI_API_KEY=jouw-google-ai-key-hier
+GEMINI_MODEL=gemini-2.5-flash
 ```
 
 AI-functies (kameranalyse, design, bouwplannen) werken niet zonder geldige API key. De segmentatie en verfvisualisatie werken wel zonder API key.

@@ -25,7 +25,7 @@ echo "  [OK] Python dependencies installed"
 # Create .env if it doesn't exist
 if [ ! -f ".env" ]; then
     cp "$ROOT_DIR/.env.example" .env
-    echo "  [INFO] Created .env from template - please add your ANTHROPIC_API_KEY"
+    echo "  [INFO] Created .env from template - please add your GOOGLE_AI_API_KEY"
 fi
 
 # Seed database
