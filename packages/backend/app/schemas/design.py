@@ -2,7 +2,7 @@ from pydantic import BaseModel
 
 
 class DesignRequest(BaseModel):
-    room_id: int
+    room_id: int | None = None
     style: str
     budget_min: float | None = None
     budget_max: float | None = None

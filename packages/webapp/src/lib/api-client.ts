@@ -206,4 +206,13 @@ export function sendLiveHelpFrame(ws: WebSocket, data: LiveHelpMessage): void {
   }
 }
 
+// ---- Live Help (REST Chat) ----
+
+export async function chatHelp(question: string, context?: string): Promise<{ response: string }> {
+  return request<{ response: string }>(`${API_V1}/live-help/chat`, {
+    method: 'POST',
+    body: JSON.stringify({ question, context: context || '' }),
+  });
+}
+
 export { ApiError };

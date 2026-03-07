@@ -230,6 +230,34 @@ class ClaudeClient:
         )
         return response.text
 
+    # ── Text Chat Help ──────────────────────────────────────────
+
+    def text_help(self, question: str, context: str = "") -> str:
+        ctx = f"\nContext: {context}" if context else ""
+        response = self.client.models.generate_content(
+            model=self.model,
+            contents=[
+                types.Content(
+                    role="user",
+                    parts=[
+                        types.Part.from_text(text=f"{question}{ctx}"),
+                    ],
+                ),
+            ],
+            config=types.GenerateContentConfig(
+                system_instruction=(
+                    "Je bent KlusAI, een expert klus- en renovatie-assistent. "
+                    "Help de gebruiker met hun doe-het-zelf project. "
+                    "Geef praktisch, veilig en gedetailleerd advies in het Nederlands. "
+                    "Focus op veiligheid. Verwijs naar Nederlandse bouwmarkten (Gamma, Praxis, Karwei). "
+                    "Houd antwoorden beknopt maar informatief (max 3-4 zinnen)."
+                ),
+                max_output_tokens=500,
+                temperature=0.5,
+            ),
+        )
+        return response.text
+
     # ── Helpers ──────────────────────────────────────────────────
 
     @staticmethod

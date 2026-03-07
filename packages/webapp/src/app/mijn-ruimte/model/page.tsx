@@ -1,11 +1,11 @@
 'use client';
 
-import { Suspense } from 'react';
+import { Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import PageHeader from '@/components/ui/PageHeader';
-import { ScanLine, ArrowLeft, Armchair, Download, Maximize2 } from 'lucide-react';
+import { ScanLine, ArrowLeft, Armchair, Download, Maximize2, RotateCcw } from 'lucide-react';
 
 export default function ModelPage() {
   return (
@@ -31,9 +31,299 @@ const SEGMENTS = [
   { type: 'Plafond', count: 1, area: '19.8 m\u00B2', color: '#FFFFFF' },
 ];
 
+type RoomView = 'perspective' | 'top' | 'front';
+
+function Room3D({ view }: { view: RoomView }) {
+  // Room proportions based on DIMENSIONS, scaled to fit container
+  // We use relative units; the container is 100% width with aspect-ratio 4/3
+  // Map length->width(x), width->depth(z), height->height(y)
+  const scaleW = DIMENSIONS.length; // 5.2m -> x axis
+  const scaleD = DIMENSIONS.width;  // 3.8m -> z axis (depth)
+  const scaleH = DIMENSIONS.height; // 2.7m -> y axis
+
+  // Normalise to a max of ~220px base unit for the room
+  const maxDim = Math.max(scaleW, scaleD, scaleH);
+  const unit = 200 / maxDim;
+
+  const W = scaleW * unit; // ~200
+  const D = scaleD * unit; // ~146
+  const H = scaleH * unit; // ~104
+
+  if (view === 'top') {
+    // Top-down 2D view
+    return (
+      <div className="relative w-full h-full flex items-center justify-center">
+        <div
+          className="relative border-2 border-[#1A1A2E]/30"
+          style={{
+            width: `${W}px`,
+            height: `${D}px`,
+            backgroundColor: SEGMENTS.find(s => s.type === 'Vloer')!.color,
+          }}
+        >
+          {/* Room label */}
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-xs font-bold text-[#1A1A2E]/60">
+              {DIMENSIONS.length}m × {DIMENSIONS.width}m
+            </span>
+          </div>
+          {/* Windows on top wall */}
+          <div className="absolute top-0 left-[20%] w-[25%] h-[4px]" style={{ backgroundColor: SEGMENTS.find(s => s.type === 'Raam')!.color, border: '1px solid #7AB8D4' }} />
+          <div className="absolute top-0 right-[20%] w-[25%] h-[4px]" style={{ backgroundColor: SEGMENTS.find(s => s.type === 'Raam')!.color, border: '1px solid #7AB8D4' }} />
+          {/* Door on bottom wall */}
+          <div className="absolute bottom-0 left-[40%] w-[20%] h-[4px]" style={{ backgroundColor: SEGMENTS.find(s => s.type === 'Deur')!.color, border: '1px solid #A08060' }} />
+          {/* Wall labels */}
+          <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] text-[#6B7280]">Achtermuur</span>
+          <span className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[10px] text-[#6B7280]">Voormuur</span>
+          <span className="absolute top-1/2 -left-5 -translate-y-1/2 -rotate-90 text-[10px] text-[#6B7280]">Links</span>
+          <span className="absolute top-1/2 -right-5 -translate-y-1/2 rotate-90 text-[10px] text-[#6B7280]">Rechts</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (view === 'front') {
+    // Front elevation view
+    return (
+      <div className="relative w-full h-full flex items-center justify-center">
+        <div
+          className="relative border-2 border-[#1A1A2E]/30"
+          style={{
+            width: `${W}px`,
+            height: `${H}px`,
+            backgroundColor: SEGMENTS.find(s => s.type === 'Muur')!.color,
+          }}
+        >
+          {/* Windows */}
+          <div
+            className="absolute top-[20%] left-[8%] w-[28%] h-[45%] rounded-sm"
+            style={{
+              backgroundColor: SEGMENTS.find(s => s.type === 'Raam')!.color,
+              border: '2px solid #7AB8D4',
+              boxShadow: 'inset 0 0 8px rgba(135,206,250,0.3)',
+            }}
+          >
+            {/* Window cross bars */}
+            <div className="absolute top-1/2 left-0 right-0 h-[2px] bg-[#7AB8D4]/60" />
+            <div className="absolute left-1/2 top-0 bottom-0 w-[2px] bg-[#7AB8D4]/60" />
+          </div>
+          <div
+            className="absolute top-[20%] right-[8%] w-[28%] h-[45%] rounded-sm"
+            style={{
+              backgroundColor: SEGMENTS.find(s => s.type === 'Raam')!.color,
+              border: '2px solid #7AB8D4',
+              boxShadow: 'inset 0 0 8px rgba(135,206,250,0.3)',
+            }}
+          >
+            <div className="absolute top-1/2 left-0 right-0 h-[2px] bg-[#7AB8D4]/60" />
+            <div className="absolute left-1/2 top-0 bottom-0 w-[2px] bg-[#7AB8D4]/60" />
+          </div>
+          {/* Door */}
+          <div
+            className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[15%] h-[55%] rounded-t-lg"
+            style={{
+              backgroundColor: SEGMENTS.find(s => s.type === 'Deur')!.color,
+              border: '2px solid #A08060',
+              borderBottom: 'none',
+            }}
+          >
+            {/* Door handle */}
+            <div className="absolute top-1/2 right-[12%] w-[6px] h-[6px] rounded-full bg-[#8B7355]" />
+          </div>
+          {/* Dimension labels */}
+          <span className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[10px] text-[#6B7280] font-medium">
+            {DIMENSIONS.length}m
+          </span>
+          <span className="absolute top-1/2 -right-5 -translate-y-1/2 rotate-90 text-[10px] text-[#6B7280] font-medium">
+            {DIMENSIONS.height}m
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  // 3D Perspective view
+  return (
+    <div className="relative w-full h-full flex items-center justify-center overflow-hidden">
+      <div
+        style={{
+          perspective: '600px',
+          perspectiveOrigin: '50% 40%',
+          width: `${W + 80}px`,
+          height: `${H + 80}px`,
+          position: 'relative',
+        }}
+      >
+        <div
+          style={{
+            width: '100%',
+            height: '100%',
+            position: 'relative',
+            transformStyle: 'preserve-3d',
+            transform: 'rotateX(12deg) rotateY(-18deg)',
+          }}
+        >
+          {/* Back wall */}
+          <div
+            className="absolute flex items-center justify-center"
+            style={{
+              width: `${W}px`,
+              height: `${H}px`,
+              backgroundColor: SEGMENTS.find(s => s.type === 'Muur')!.color,
+              border: '1.5px solid rgba(26,26,46,0.15)',
+              transform: `translateZ(-${D / 2}px) translateX(${(W + 80 - W) / 2}px) translateY(${(H + 80 - H) / 2}px)`,
+              boxShadow: 'inset 0 0 30px rgba(0,0,0,0.05)',
+            }}
+          >
+            {/* Windows on back wall */}
+            <div
+              className="absolute top-[18%] left-[10%] w-[30%] h-[40%] rounded-sm"
+              style={{
+                backgroundColor: SEGMENTS.find(s => s.type === 'Raam')!.color,
+                border: '2px solid #7AB8D4',
+                boxShadow: 'inset 0 0 12px rgba(135,206,250,0.4)',
+              }}
+            >
+              <div className="absolute top-1/2 left-0 right-0 h-[1.5px] bg-[#7AB8D4]/50" />
+              <div className="absolute left-1/2 top-0 bottom-0 w-[1.5px] bg-[#7AB8D4]/50" />
+            </div>
+            <div
+              className="absolute top-[18%] right-[10%] w-[30%] h-[40%] rounded-sm"
+              style={{
+                backgroundColor: SEGMENTS.find(s => s.type === 'Raam')!.color,
+                border: '2px solid #7AB8D4',
+                boxShadow: 'inset 0 0 12px rgba(135,206,250,0.4)',
+              }}
+            >
+              <div className="absolute top-1/2 left-0 right-0 h-[1.5px] bg-[#7AB8D4]/50" />
+              <div className="absolute left-1/2 top-0 bottom-0 w-[1.5px] bg-[#7AB8D4]/50" />
+            </div>
+            <span className="absolute bottom-2 left-1/2 -translate-x-1/2 text-[9px] font-semibold text-[#1A1A2E]/40 whitespace-nowrap">
+              Achtermuur
+            </span>
+          </div>
+
+          {/* Floor */}
+          <div
+            className="absolute"
+            style={{
+              width: `${W}px`,
+              height: `${D}px`,
+              backgroundColor: SEGMENTS.find(s => s.type === 'Vloer')!.color,
+              border: '1.5px solid rgba(26,26,46,0.12)',
+              transform: `rotateX(90deg) translateZ(${H / 2 + (H + 80 - H) / 2}px) translateX(${(W + 80 - W) / 2}px)`,
+              transformOrigin: 'top center',
+              boxShadow: 'inset 0 0 40px rgba(0,0,0,0.06)',
+            }}
+          >
+            {/* Floor boards pattern */}
+            {[...Array(6)].map((_, i) => (
+              <div
+                key={i}
+                className="absolute left-0 right-0 h-[1px] bg-[#C4B498]/30"
+                style={{ top: `${(i + 1) * (100 / 7)}%` }}
+              />
+            ))}
+            <span className="absolute bottom-2 left-1/2 -translate-x-1/2 text-[9px] font-semibold text-[#1A1A2E]/40">
+              Vloer
+            </span>
+          </div>
+
+          {/* Ceiling */}
+          <div
+            className="absolute"
+            style={{
+              width: `${W}px`,
+              height: `${D}px`,
+              backgroundColor: SEGMENTS.find(s => s.type === 'Plafond')!.color,
+              border: '1.5px solid rgba(26,26,46,0.08)',
+              transform: `rotateX(90deg) translateZ(-${H / 2 - (H + 80 - H) / 2}px) translateX(${(W + 80 - W) / 2}px)`,
+              transformOrigin: 'top center',
+              boxShadow: 'inset 0 0 20px rgba(0,0,0,0.03)',
+            }}
+          >
+            <span className="absolute top-2 left-1/2 -translate-x-1/2 text-[9px] font-semibold text-[#1A1A2E]/25">
+              Plafond
+            </span>
+          </div>
+
+          {/* Left wall */}
+          <div
+            className="absolute flex items-center justify-center"
+            style={{
+              width: `${D}px`,
+              height: `${H}px`,
+              backgroundColor: SEGMENTS.find(s => s.type === 'Muur')!.color,
+              border: '1.5px solid rgba(26,26,46,0.12)',
+              transform: `rotateY(90deg) translateZ(-${W / 2 - (W + 80 - W) / 2}px) translateY(${(H + 80 - H) / 2}px)`,
+              transformOrigin: 'center center',
+              boxShadow: 'inset 0 0 30px rgba(0,0,0,0.08)',
+              filter: 'brightness(0.95)',
+            }}
+          >
+            <span className="absolute bottom-2 left-1/2 -translate-x-1/2 text-[9px] font-semibold text-[#1A1A2E]/40">
+              Linkermuur
+            </span>
+          </div>
+
+          {/* Right wall */}
+          <div
+            className="absolute flex items-center justify-center"
+            style={{
+              width: `${D}px`,
+              height: `${H}px`,
+              backgroundColor: SEGMENTS.find(s => s.type === 'Muur')!.color,
+              border: '1.5px solid rgba(26,26,46,0.12)',
+              transform: `rotateY(-90deg) translateZ(-${W / 2 + (W + 80 - W) / 2}px) translateY(${(H + 80 - H) / 2}px)`,
+              transformOrigin: 'center center',
+              boxShadow: 'inset 0 0 30px rgba(0,0,0,0.06)',
+              filter: 'brightness(0.92)',
+            }}
+          >
+            {/* Door on right wall */}
+            <div
+              className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[35%] h-[60%] rounded-t-md"
+              style={{
+                backgroundColor: SEGMENTS.find(s => s.type === 'Deur')!.color,
+                border: '2px solid #A08060',
+                borderBottom: 'none',
+              }}
+            >
+              <div className="absolute top-1/2 right-[10%] w-[5px] h-[5px] rounded-full bg-[#8B7355]" />
+            </div>
+            <span className="absolute bottom-2 left-1/2 -translate-x-1/2 text-[9px] font-semibold text-[#1A1A2E]/40">
+              Rechtermuur
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ModelContent() {
   const searchParams = useSearchParams();
   const roomId = searchParams.get('room') || '1';
+  const [currentView, setCurrentView] = useState<RoomView>('perspective');
+  const [showExportToast, setShowExportToast] = useState(false);
+
+  const viewLabels: Record<RoomView, string> = {
+    perspective: '3D Perspectief',
+    top: 'Bovenaanzicht',
+    front: 'Vooraanzicht',
+  };
+
+  const viewOrder: RoomView[] = ['perspective', 'top', 'front'];
+
+  const cycleView = () => {
+    const currentIndex = viewOrder.indexOf(currentView);
+    setCurrentView(viewOrder[(currentIndex + 1) % viewOrder.length]);
+  };
+
+  const handleExport = () => {
+    setShowExportToast(true);
+    setTimeout(() => setShowExportToast(false), 2500);
+  };
 
   return (
     <div>
@@ -53,21 +343,54 @@ function ModelContent() {
           Terug naar kamers
         </Link>
 
-        {/* 3D model placeholder */}
+        {/* 3D Room Visualization */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          className="relative bg-gradient-to-br from-[#F0FFF4] to-[#E8F8F5] rounded-2xl border border-[#00B894]/20 overflow-hidden"
+          className="relative bg-gradient-to-br from-[#F8FAFE] to-[#EEF2F7] rounded-2xl border border-[#00B894]/20 overflow-hidden"
           style={{ aspectRatio: '4/3' }}
         >
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
-            <span className="text-6xl">{'\uD83E\uDDF1'}</span>
-            <p className="text-sm font-bold text-[#1A1A2E]">3D-weergave</p>
-            <p className="text-xs text-[#6B7280]">Interactief model wordt hier getoond</p>
+          <Room3D view={currentView} />
+
+          {/* View label */}
+          <div className="absolute top-3 left-3 px-2.5 py-1 rounded-lg bg-white/80 backdrop-blur-sm text-[11px] font-semibold text-[#1A1A2E]/70">
+            {viewLabels[currentView]}
           </div>
-          <button className="absolute top-3 right-3 w-8 h-8 rounded-lg bg-white/80 backdrop-blur-sm flex items-center justify-center text-[#6B7280] hover:bg-white transition-colors">
-            <Maximize2 size={16} />
-          </button>
+
+          {/* Controls */}
+          <div className="absolute top-3 right-3 flex gap-2">
+            <button
+              onClick={cycleView}
+              className="w-8 h-8 rounded-lg bg-white/80 backdrop-blur-sm flex items-center justify-center text-[#6B7280] hover:bg-white hover:text-[#00B894] transition-colors"
+              title="Wissel weergave"
+            >
+              <RotateCcw size={16} />
+            </button>
+            <button
+              onClick={cycleView}
+              className="w-8 h-8 rounded-lg bg-white/80 backdrop-blur-sm flex items-center justify-center text-[#6B7280] hover:bg-white hover:text-[#00B894] transition-colors"
+              title="Volledig scherm"
+            >
+              <Maximize2 size={16} />
+            </button>
+          </div>
+
+          {/* View selector pills */}
+          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1 bg-white/70 backdrop-blur-sm rounded-full p-1">
+            {viewOrder.map((v) => (
+              <button
+                key={v}
+                onClick={() => setCurrentView(v)}
+                className={`px-3 py-1 rounded-full text-[10px] font-medium transition-all ${
+                  currentView === v
+                    ? 'bg-[#00B894] text-white shadow-sm'
+                    : 'text-[#6B7280] hover:text-[#1A1A2E]'
+                }`}
+              >
+                {v === 'perspective' ? '3D' : v === 'top' ? 'Boven' : 'Voor'}
+              </button>
+            ))}
+          </div>
         </motion.div>
 
         {/* Dimensions */}
@@ -128,7 +451,7 @@ function ModelContent() {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15 }}
-          className="flex gap-3"
+          className="relative flex gap-3"
         >
           <Link
             href={`/mijn-ruimte/meubels?room=${roomId}`}
@@ -138,10 +461,25 @@ function ModelContent() {
             <Armchair size={18} />
             Meubels plaatsen
           </Link>
-          <button className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-medium border border-[#E5E7EB] text-[#6B7280] hover:bg-[#F3F4F6] transition-colors">
+          <button
+            onClick={handleExport}
+            className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-medium border border-[#E5E7EB] text-[#6B7280] hover:bg-[#F3F4F6] transition-colors"
+          >
             <Download size={18} />
             Exporteren
           </button>
+
+          {/* Export toast */}
+          {showExportToast && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 8 }}
+              className="absolute -top-12 left-1/2 -translate-x-1/2 px-4 py-2 rounded-lg bg-[#1A1A2E] text-white text-xs font-medium shadow-lg whitespace-nowrap"
+            >
+              Export functie komt binnenkort
+            </motion.div>
+          )}
         </motion.div>
       </div>
     </div>

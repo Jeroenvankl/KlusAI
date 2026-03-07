@@ -1,13 +1,35 @@
 import json
 import logging
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
+from pydantic import BaseModel
 
 from app.services.claude_client import ClaudeClient
 from app.config import settings
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+class ChatMessage(BaseModel):
+    question: str
+    context: str = ""
+
+
+class ChatResponse(BaseModel):
+    response: str
+
+
+@router.post("/chat", response_model=ChatResponse)
+async def live_help_chat(request: Request, body: ChatMessage):
+    """Text-based construction help chat endpoint."""
+    claude = request.app.state.claude
+    try:
+        response_text = claude.text_help(body.question, body.context)
+        return ChatResponse(response=response_text)
+    except Exception as e:
+        logger.error("Chat help error: %s", e)
+        return ChatResponse(response="Sorry, er ging iets mis. Probeer het opnieuw.")
 
 
 @router.websocket("/ws")

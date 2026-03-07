@@ -1,7 +1,8 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import PageHeader from '@/components/ui/PageHeader';
 import { Wallet, ArrowLeft, Leaf } from 'lucide-react';
 
@@ -44,6 +45,14 @@ const ECO_TIPS = [
 ];
 
 export default function EcoPage() {
+  const [showSummary, setShowSummary] = useState(false);
+
+  // Calculate totals from the tips' saving values
+  const yearlyMoneySavings = [80, 200, 60]; // LED, Isolatie (low end), Waterbesparend
+  const totalYearlySaving = yearlyMoneySavings.reduce((a, b) => a + b, 0); // €340
+  const materialSavingPercent = 20; // Gerecyclede materialen
+  const ecoScoreBoost = 15; // Watergedragen verf
+
   return (
     <div>
       <PageHeader
@@ -134,12 +143,69 @@ export default function EcoPage() {
 
         {/* CTA */}
         <button
+          onClick={() => setShowSummary((prev) => !prev)}
           className="w-full flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl text-white font-medium text-sm shadow-lg active:scale-[0.98] transition-transform"
           style={{ background: 'linear-gradient(135deg, #27AE60, #2ECC71)' }}
         >
           <Leaf size={18} />
-          Bereken mijn totale eco-impact
+          {showSummary ? 'Verberg eco-impact' : 'Bereken mijn totale eco-impact'}
         </button>
+
+        {/* Eco impact summary */}
+        <AnimatePresence>
+          {showSummary && (
+            <motion.div
+              initial={{ opacity: 0, y: 12, height: 0 }}
+              animate={{ opacity: 1, y: 0, height: 'auto' }}
+              exit={{ opacity: 0, y: -12, height: 0 }}
+              className="bg-white rounded-2xl border border-[#E5E7EB] p-5 space-y-4 overflow-hidden"
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <Leaf size={18} className="text-[#27AE60]" />
+                <h3 className="text-base font-bold text-[#1A1A2E]">Jouw totale eco-impact</h3>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-[#D5F5E3] rounded-xl p-3 text-center">
+                  <p className="text-2xl font-bold text-[#27AE60]">{'\u20AC'}{totalYearlySaving}</p>
+                  <p className="text-xs text-[#6B7280] mt-0.5">Jaarlijkse besparing</p>
+                </div>
+                <div className="bg-[#D5F5E3] rounded-xl p-3 text-center">
+                  <p className="text-2xl font-bold text-[#27AE60]">+{ecoScoreBoost}%</p>
+                  <p className="text-xs text-[#6B7280] mt-0.5">Eco-score boost</p>
+                </div>
+                <div className="bg-[#D5F5E3] rounded-xl p-3 text-center">
+                  <p className="text-2xl font-bold text-[#27AE60]">~{materialSavingPercent}%</p>
+                  <p className="text-xs text-[#6B7280] mt-0.5">Materiaalbesparing</p>
+                </div>
+                <div className="bg-[#D5F5E3] rounded-xl p-3 text-center">
+                  <p className="text-2xl font-bold text-[#27AE60]">5</p>
+                  <p className="text-xs text-[#6B7280] mt-0.5">Tips toegepast</p>
+                </div>
+              </div>
+
+              <div className="space-y-2 pt-2 border-t border-[#E5E7EB]">
+                <p className="text-xs font-medium text-[#1A1A2E]">Uitsplitsing jaarlijkse besparing:</p>
+                <div className="flex justify-between text-sm">
+                  <span className="text-[#6B7280]">LED-verlichting</span>
+                  <span className="font-medium text-[#1A1A2E]">{'\u20AC'}80/jaar</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-[#6B7280]">Isolatie verbeteren</span>
+                  <span className="font-medium text-[#1A1A2E]">{'\u20AC'}200/jaar</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-[#6B7280]">Waterbesparende kranen</span>
+                  <span className="font-medium text-[#1A1A2E]">{'\u20AC'}60/jaar</span>
+                </div>
+                <div className="flex justify-between text-sm pt-2 border-t border-[#F3F4F6]">
+                  <span className="font-bold text-[#1A1A2E]">Totaal</span>
+                  <span className="font-bold text-[#27AE60]">{'\u20AC'}{totalYearlySaving}/jaar</span>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );

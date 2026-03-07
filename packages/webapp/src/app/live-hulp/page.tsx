@@ -1,111 +1,164 @@
 'use client';
 
-import { useState } from 'react';
-import Link from 'next/link';
+import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Video, ArrowLeft, Camera, MessageSquare, Wifi, WifiOff } from 'lucide-react';
+import { MessageSquare, Send, Loader2 } from 'lucide-react';
+import PageHeader from '@/components/ui/PageHeader';
+import { chatHelp } from '@/lib/api-client';
+
+interface Message {
+  role: 'user' | 'ai';
+  text: string;
+}
+
+const WELCOME_MESSAGE: Message = {
+  role: 'ai',
+  text: 'Hallo! Ik ben je AI klus-assistent. Stel me een vraag over je verbouwing, gereedschap, materialen of technieken. Ik help je graag op weg!',
+};
+
+const QUICK_SUGGESTIONS = [
+  'Hoe verf ik een muur?',
+  'Welk gereedschap heb ik nodig?',
+  'Veiligheidstips',
+  'Hoe leg ik laminaat?',
+  'Hoe hang ik planken op?',
+];
 
 export default function LiveHulpPage() {
-  const [isConnected, setIsConnected] = useState(false);
+  const [messages, setMessages] = useState<Message[]>([WELCOME_MESSAGE]);
+  const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  const sendMessage = async (question: string) => {
+    const trimmed = question.trim();
+    if (!trimmed || isLoading) return;
+
+    const userMessage: Message = { role: 'user', text: trimmed };
+    setMessages((prev) => [...prev, userMessage]);
+    setInput('');
+    setIsLoading(true);
+
+    try {
+      const { response } = await chatHelp(trimmed);
+      const aiMessage: Message = { role: 'ai', text: response };
+      setMessages((prev) => [...prev, aiMessage]);
+    } catch {
+      const errorMessage: Message = {
+        role: 'ai',
+        text: 'Sorry, er ging iets mis bij het verwerken van je vraag. Probeer het opnieuw.',
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
+      inputRef.current?.focus();
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage(input);
+    }
+  };
 
   return (
-    <div className="min-h-dvh bg-[#1A1A2E] flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 bg-black/30">
-        <Link
-          href="/"
-          className="flex items-center gap-1.5 text-sm text-white/70 hover:text-white transition-colors"
-        >
-          <ArrowLeft size={16} />
-          Terug
-        </Link>
-        <div className="flex items-center gap-2">
-          {isConnected ? (
-            <Wifi size={16} className="text-[#00B894]" />
-          ) : (
-            <WifiOff size={16} className="text-[#EF4444]" />
-          )}
-          <span className="text-xs text-white/60">
-            {isConnected ? 'Verbonden' : 'Niet verbonden'}
-          </span>
-        </div>
-      </div>
+    <div className="flex flex-col h-dvh bg-[#F5F6FA]">
+      <PageHeader
+        title="Live Hulp"
+        subtitle="Stel een vraag over je klus"
+        icon={MessageSquare}
+        gradient={['#E67E22', '#F39C12'] as const}
+      />
 
-      {/* Camera view placeholder */}
-      <div className="flex-1 flex flex-col items-center justify-center gap-4 px-4">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="w-24 h-24 rounded-3xl flex items-center justify-center"
-          style={{ background: 'linear-gradient(135deg, #E67E22, #F39C12)' }}
-        >
-          <Video size={40} className="text-white" />
-        </motion.div>
-        <div className="text-center">
-          <h1 className="text-xl font-bold text-white">Live Hulp</h1>
-          <p className="text-sm text-white/60 mt-1 max-w-xs">
-            Richt je camera op je klusproject en krijg realtime AI-hulp
-          </p>
-        </div>
-
-        {!isConnected && (
-          <motion.button
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            onClick={() => setIsConnected(true)}
-            className="flex items-center gap-2 px-6 py-3 rounded-xl text-white text-sm font-medium active:scale-[0.98] transition-transform mt-4"
-            style={{ background: 'linear-gradient(135deg, #E67E22, #F39C12)' }}
-          >
-            <Camera size={18} />
-            Start camera
-          </motion.button>
-        )}
-
-        {isConnected && (
+      {/* Chat messages */}
+      <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-3">
+        {messages.map((msg, i) => (
           <motion.div
-            initial={{ opacity: 0, y: 12 }}
+            key={i}
+            initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            className="w-full max-w-sm space-y-3 mt-4"
+            transition={{ duration: 0.2 }}
+            className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
-            <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4">
-              <p className="text-xs text-white/40 mb-1">AI Assistent</p>
-              <p className="text-sm text-white">
-                Camera is actief. Richt op je klusproject en stel een vraag.
-              </p>
+            <div
+              className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
+                msg.role === 'user'
+                  ? 'bg-gradient-to-br from-[#E67E22] to-[#F39C12] text-white rounded-br-md'
+                  : 'bg-white text-[#1A1A2E] border border-[#E5E7EB] rounded-bl-md shadow-sm'
+              }`}
+            >
+              {msg.text}
             </div>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                placeholder="Stel een vraag..."
-                className="flex-1 px-4 py-2.5 bg-white/10 backdrop-blur-sm rounded-xl text-sm text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-[#E67E22]/50 border border-white/10"
-              />
-              <button
-                className="px-4 py-2.5 rounded-xl text-white"
-                style={{ background: 'linear-gradient(135deg, #E67E22, #F39C12)' }}
-              >
-                <MessageSquare size={18} />
-              </button>
+          </motion.div>
+        ))}
+
+        {isLoading && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex justify-start"
+          >
+            <div className="bg-white text-[#6B7280] border border-[#E5E7EB] rounded-2xl rounded-bl-md px-4 py-3 shadow-sm flex items-center gap-2 text-sm">
+              <Loader2 size={16} className="animate-spin text-[#E67E22]" />
+              Aan het nadenken...
             </div>
           </motion.div>
         )}
+
+        <div ref={messagesEndRef} />
       </div>
 
-      {/* Bottom controls */}
-      {isConnected && (
-        <motion.div
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          className="px-4 py-4 bg-black/30"
-        >
-          <button
-            onClick={() => setIsConnected(false)}
-            className="w-full px-4 py-3 rounded-xl text-sm font-medium bg-[#EF4444] text-white active:scale-[0.98] transition-transform"
-          >
-            Stop sessie
-          </button>
-        </motion.div>
+      {/* Quick suggestions - only show when few messages */}
+      {messages.length <= 1 && !isLoading && (
+        <div className="px-4 pb-3">
+          <p className="text-xs text-[#6B7280] mb-2">Snelle suggesties</p>
+          <div className="flex flex-wrap gap-2">
+            {QUICK_SUGGESTIONS.map((suggestion) => (
+              <button
+                key={suggestion}
+                onClick={() => sendMessage(suggestion)}
+                className="px-3 py-1.5 rounded-full text-xs font-medium bg-white border border-[#E5E7EB] text-[#1A1A2E] hover:border-[#E67E22] hover:text-[#E67E22] transition-colors shadow-sm"
+              >
+                {suggestion}
+              </button>
+            ))}
+          </div>
+        </div>
       )}
+
+      {/* Input bar */}
+      <div className="px-4 py-3 bg-white border-t border-[#E5E7EB]">
+        <div className="flex items-center gap-2">
+          <input
+            ref={inputRef}
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Stel een vraag over je klus..."
+            disabled={isLoading}
+            className="flex-1 px-4 py-2.5 bg-[#F5F6FA] rounded-xl text-sm text-[#1A1A2E] placeholder-[#9CA3AF] focus:outline-none focus:ring-2 focus:ring-[#E67E22]/40 border border-[#E5E7EB] disabled:opacity-50"
+          />
+          <button
+            onClick={() => sendMessage(input)}
+            disabled={!input.trim() || isLoading}
+            className="p-2.5 rounded-xl text-white transition-opacity disabled:opacity-40"
+            style={{ background: 'linear-gradient(135deg, #E67E22, #F39C12)' }}
+          >
+            <Send size={18} />
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

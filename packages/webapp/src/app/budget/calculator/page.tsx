@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import PageHeader from '@/components/ui/PageHeader';
@@ -26,10 +26,36 @@ const SAVING_TIPS = [
   'Let op actiefolders en kortingscodes',
 ];
 
+const STORAGE_KEY = 'klusai-budget-items';
+
 export default function CalculatorPage() {
   const [items, setItems] = useState<CostItem[]>(INITIAL_ITEMS);
   const [newLabel, setNewLabel] = useState('');
   const [newAmount, setNewAmount] = useState('');
+
+  // Load items from localStorage on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored) as CostItem[];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setItems(parsed);
+        }
+      }
+    } catch {
+      // Ignore parse errors, use defaults
+    }
+  }, []);
+
+  // Save items to localStorage whenever they change
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+    } catch {
+      // Ignore storage errors
+    }
+  }, [items]);
 
   const total = items.reduce((sum, item) => sum + item.amount, 0);
 

@@ -45,11 +45,14 @@ export default function VoorbeeldNadoenPage() {
   const handleImageSelect = (file: File, dataUrl: string) => {
     setImageFile(file);
     setImageDataUrl(dataUrl);
+    // Store the image data URL so the analyse page can access it after navigation
+    sessionStorage.setItem('klusai-reverse-image', dataUrl);
   };
 
   const handleClear = () => {
     setImageFile(null);
     setImageDataUrl(null);
+    sessionStorage.removeItem('klusai-reverse-image');
   };
 
   return (

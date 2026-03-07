@@ -1,10 +1,12 @@
 'use client';
 
-import { Suspense, useState, useMemo } from 'react';
+import { Suspense, useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import PageHeader from '@/components/ui/PageHeader';
+import { reverseAnalyze } from '@/lib/api-client';
+import type { ReverseAnalysisResponse } from '@/types/api';
 import {
   Camera,
   ArrowLeft,
@@ -16,7 +18,10 @@ import {
   ExternalLink,
   ChevronDown,
   ChevronUp,
-  Check,
+  AlertTriangle,
+  RotateCcw,
+  Lightbulb,
+  ListChecks,
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -28,30 +33,73 @@ export default function AnalysePage() {
   );
 }
 
-/* ── Mock data matching mobile ReverseAnalysisScreen + ReverseShopScreen ── */
+/* ── Mapped types for UI display ── */
 
-const MOCK_RESULT = {
-  style: 'Scandinavisch Modern',
-  confidence: 92,
-  colors: [
-    { hex: '#F5F0E8', name: 'Warm Wit', area: 45 },
-    { hex: '#8B9E8B', name: 'Salie Groen', area: 20 },
-    { hex: '#C4A882', name: 'Naturel Hout', area: 25 },
-    { hex: '#2C3E50', name: 'Donker Accent', area: 10 },
-  ],
-  furniture: [
-    { item: 'Bank (3-zits)', match: 'KIVIK - IKEA', price: 599, matchScore: 95 },
-    { item: 'Salontafel (rond)', match: 'STOCKHOLM - IKEA', price: 249, matchScore: 88 },
-    { item: 'Vloerkleed (jute)', match: 'LOHALS - IKEA', price: 129, matchScore: 92 },
-    { item: 'Staande lamp', match: 'HEKTAR - IKEA', price: 49.99, matchScore: 90 },
-    { item: 'Kussen set', match: 'GURLI - IKEA', price: 8, matchScore: 85 },
-  ],
-  materials: [
-    { type: 'Muurverf', suggestion: 'Flexa Creations - Sandy Beach', price: 44.99, store: 'Gamma' },
-    { type: 'Vloer', suggestion: 'Eiken laminaat Select', price: 24.99, store: 'Gamma' },
-  ],
-  totalEstimate: 1350,
-};
+interface MappedResult {
+  style: string;
+  description: string;
+  colors: { hex: string; name: string; role: string }[];
+  furniture: {
+    item: string;
+    match: string;
+    store: string;
+    price: number;
+    material: string;
+  }[];
+  materials: { type: string; description: string }[];
+  lighting: { type: string; description: string };
+  howToRecreate: string[];
+  totalEstimate: number;
+}
+
+interface ShopItem {
+  id: string;
+  name: string;
+  store: string;
+  price: number;
+  originalItem: string;
+  material: string;
+}
+
+function mapResponseToResult(res: ReverseAnalysisResponse): MappedResult {
+  return {
+    style: res.style_name,
+    description: res.description,
+    colors: res.color_palette.map((c) => ({
+      hex: c.hex_code,
+      name: c.name,
+      role: c.role,
+    })),
+    furniture: res.furniture.map((f) => ({
+      item: f.item,
+      match: f.estimated_product,
+      store: f.store,
+      price: f.estimated_price,
+      material: f.material,
+    })),
+    materials: res.materials,
+    lighting: res.lighting,
+    howToRecreate: res.how_to_recreate,
+    totalEstimate: res.total_estimated_cost,
+  };
+}
+
+function buildShopItems(res: ReverseAnalysisResponse): ShopItem[] {
+  const items: ShopItem[] = [];
+  res.furniture.forEach((f, i) => {
+    items.push({
+      id: `furniture-${i}`,
+      name: f.estimated_product,
+      store: f.store,
+      price: f.estimated_price,
+      originalItem: f.item,
+      material: f.material,
+    });
+  });
+  return items;
+}
+
+/* ── Store filters ── */
 
 const STORE_FILTERS = [
   { key: 'all', label: 'Alle winkels' },
@@ -62,38 +110,60 @@ const STORE_FILTERS = [
   { key: 'kwantum', label: 'Kwantum' },
 ];
 
-const SHOP_ITEMS = [
-  { id: '1', name: 'KIVIK 3-zits bank', store: 'IKEA', price: 599, originalItem: 'Bank (3-zits)', matchScore: 95, url: 'https://www.ikea.com/nl/' },
-  { id: '2', name: 'STOCKHOLM Salontafel', store: 'IKEA', price: 249, originalItem: 'Salontafel (rond)', matchScore: 88, url: 'https://www.ikea.com/nl/' },
-  { id: '3', name: 'LOHALS Vloerkleed jute', store: 'IKEA', price: 129, originalItem: 'Vloerkleed (jute)', matchScore: 92, url: 'https://www.ikea.com/nl/' },
-  { id: '4', name: 'Flexa Creations Sandy Beach 5L', store: 'Gamma', price: 44.99, originalItem: 'Muurverf', matchScore: 97, url: 'https://www.gamma.nl/' },
-  { id: '5', name: 'HEKTAR Staande lamp', store: 'IKEA', price: 49.99, originalItem: 'Staande lamp', matchScore: 90, url: 'https://www.ikea.com/nl/' },
-  { id: '6', name: 'Eiken laminaat Select', store: 'Gamma', price: 24.99, originalItem: 'Vloer (per m²)', matchScore: 85, url: 'https://www.gamma.nl/' },
-  { id: '7', name: 'Eiken laminaat Premium', store: 'Praxis', price: 29.99, originalItem: 'Vloer (per m²)', matchScore: 91, url: 'https://www.praxis.nl/' },
-];
-
 /* ── Component ── */
 
 function AnalyseContent() {
   const searchParams = useSearchParams();
   const source = searchParams.get('source') || 'upload';
 
-  const [phase, setPhase] = useState<'loading' | 'result' | 'shop'>('loading');
+  const [phase, setPhase] = useState<'loading' | 'result' | 'shop' | 'error'>('loading');
   const [expandedSection, setExpandedSection] = useState<string | null>('colors');
   const [selectedStore, setSelectedStore] = useState('all');
+  const [result, setResult] = useState<MappedResult | null>(null);
+  const [shopItems, setShopItems] = useState<ShopItem[]>([]);
+  const [errorMessage, setErrorMessage] = useState<string>('');
 
-  // Simulate analysis
-  useState(() => {
-    const timer = setTimeout(() => setPhase('result'), 2200);
-    return () => clearTimeout(timer);
-  });
+  const runAnalysis = useCallback(async () => {
+    setPhase('loading');
+    setErrorMessage('');
+
+    try {
+      // Read the stored image data URL from sessionStorage
+      const dataUrl = sessionStorage.getItem('klusai-reverse-image');
+      if (!dataUrl) {
+        throw new Error('Geen afbeelding gevonden. Ga terug en upload een foto.');
+      }
+
+      // Convert data URL back to a File
+      const response = await fetch(dataUrl);
+      const blob = await response.blob();
+      const file = new File([blob], 'image.jpg', { type: blob.type || 'image/jpeg' });
+
+      // Call the real API
+      const apiResponse = await reverseAnalyze(file);
+
+      // Map response to UI-friendly format
+      setResult(mapResponseToResult(apiResponse));
+      setShopItems(buildShopItems(apiResponse));
+      setPhase('result');
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Er is een onbekende fout opgetreden.';
+      setErrorMessage(message);
+      setPhase('error');
+    }
+  }, []);
+
+  useEffect(() => {
+    runAnalysis();
+  }, [runAnalysis]);
 
   const filteredShop = useMemo(
     () =>
-      SHOP_ITEMS.filter(
+      shopItems.filter(
         (item) => selectedStore === 'all' || item.store.toLowerCase() === selectedStore,
       ),
-    [selectedStore],
+    [selectedStore, shopItems],
   );
 
   const shopTotal = useMemo(
@@ -131,8 +201,51 @@ function AnalyseContent() {
     );
   }
 
+  /* ── Error state ── */
+  if (phase === 'error') {
+    return (
+      <div>
+        <PageHeader
+          title="Fout opgetreden"
+          subtitle="De analyse is mislukt"
+          icon={Camera}
+          gradient={['#0984E3', '#74B9FF']}
+        />
+        <div className="px-4 md:px-8 space-y-4 pb-8">
+          <Link
+            href="/voorbeeld-nadoen"
+            className="inline-flex items-center gap-1.5 text-sm text-[#6B7280] hover:text-[#1A1A2E] transition-colors"
+          >
+            <ArrowLeft size={16} />
+            Terug
+          </Link>
+
+          <div className="flex flex-col items-center justify-center py-12 gap-4">
+            <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center">
+              <AlertTriangle size={32} className="text-red-500" />
+            </div>
+            <p className="text-sm font-bold text-[#1A1A2E] text-center">
+              Er ging iets mis
+            </p>
+            <p className="text-xs text-[#6B7280] text-center max-w-xs px-4">
+              {errorMessage}
+            </p>
+            <button
+              onClick={runAnalysis}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-sm font-medium active:scale-[0.98] transition-transform"
+              style={{ background: 'linear-gradient(135deg, #0984E3, #74B9FF)' }}
+            >
+              <RotateCcw size={16} />
+              Opnieuw proberen
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   /* ── Shop view ── */
-  if (phase === 'shop') {
+  if (phase === 'shop' && result) {
     return (
       <div>
         <PageHeader
@@ -170,6 +283,11 @@ function AnalyseContent() {
 
           {/* Products */}
           <div className="space-y-3">
+            {filteredShop.length === 0 && (
+              <p className="text-sm text-[#9CA3AF] text-center py-8">
+                Geen producten gevonden voor deze winkel
+              </p>
+            )}
             {filteredShop.map((item, i) => (
               <motion.div
                 key={item.id}
@@ -187,41 +305,33 @@ function AnalyseContent() {
                     {'\u20AC'}{item.price.toFixed(2)}
                   </span>
                 </div>
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[#D5F5E3] text-[#27AE60]">
-                    {item.matchScore}% match
-                  </span>
+                <div className="flex items-center gap-2 mb-1">
                   <span className="text-xs text-[#9CA3AF]">Past bij: {item.originalItem}</span>
                 </div>
-                <a
-                  href={item.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-1.5 w-full py-2 border-t border-[#F3F4F6] text-xs font-medium text-[#0984E3] hover:text-[#0866B3] transition-colors"
-                >
-                  Bekijk in winkel
-                  <ExternalLink size={12} />
-                </a>
+                {item.material && (
+                  <p className="text-[11px] text-[#9CA3AF]">Materiaal: {item.material}</p>
+                )}
               </motion.div>
             ))}
           </div>
 
           {/* Total footer */}
-          <div className="bg-white rounded-2xl border border-[#E5E7EB] p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs text-[#9CA3AF]">{filteredShop.length} producten</p>
-              <p className="text-base font-bold text-[#1A1A2E]">Totaal: {'\u20AC'}{shopTotal.toFixed(2)}</p>
+          {filteredShop.length > 0 && (
+            <div className="bg-white rounded-2xl border border-[#E5E7EB] p-4 flex items-center justify-between">
+              <div>
+                <p className="text-xs text-[#9CA3AF]">{filteredShop.length} producten</p>
+                <p className="text-base font-bold text-[#1A1A2E]">Totaal: {'\u20AC'}{shopTotal.toFixed(2)}</p>
+              </div>
             </div>
-            <button className="px-4 py-2.5 rounded-xl text-white text-sm font-medium" style={{ background: 'linear-gradient(135deg, #0984E3, #74B9FF)' }}>
-              {'\uD83D\uDED2'} Alles toevoegen
-            </button>
-          </div>
+          )}
         </div>
       </div>
     );
   }
 
   /* ── Result view ── */
+  if (!result) return null;
+
   return (
     <div>
       <PageHeader
@@ -244,12 +354,12 @@ function AnalyseContent() {
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          className="rounded-2xl p-5 text-center"
+          className="rounded-2xl p-5"
           style={{ background: 'linear-gradient(135deg, #0984E3, #74B9FF)' }}
         >
           <p className="text-xs text-white/80 uppercase tracking-wider">Herkende stijl</p>
-          <p className="text-xl font-bold text-white mt-1">{MOCK_RESULT.style}</p>
-          <p className="text-sm text-white/80 mt-1">{MOCK_RESULT.confidence}% zekerheid</p>
+          <p className="text-xl font-bold text-white mt-1">{result.style}</p>
+          <p className="text-sm text-white/80 mt-1">{result.description}</p>
         </motion.div>
 
         {/* Colors found */}
@@ -280,26 +390,31 @@ function AnalyseContent() {
                 className="overflow-hidden"
               >
                 <div className="px-4 pb-4 space-y-2">
-                  {MOCK_RESULT.colors.map((c, i) => (
+                  {result.colors.map((c, i) => (
                     <div key={i} className="flex items-center gap-3 py-1.5">
                       <div
                         className="w-8 h-8 rounded-lg shadow-sm border border-[#E5E7EB]"
                         style={{ backgroundColor: c.hex }}
                       />
-                      <span className="text-sm font-medium text-[#1A1A2E] flex-1">{c.name}</span>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-sm font-medium text-[#1A1A2E] block">{c.name}</span>
+                        <span className="text-[11px] text-[#9CA3AF]">{c.role}</span>
+                      </div>
                       <span className="text-xs font-mono text-[#9CA3AF]">{c.hex}</span>
-                      <span className="text-xs text-[#6B7280]">{c.area}%</span>
                     </div>
                   ))}
                   {/* Color strip */}
-                  <div className="flex h-3 rounded-full overflow-hidden mt-2">
-                    {MOCK_RESULT.colors.map((c, i) => (
-                      <div
-                        key={i}
-                        style={{ backgroundColor: c.hex, width: `${c.area}%` }}
-                      />
-                    ))}
-                  </div>
+                  {result.colors.length > 0 && (
+                    <div className="flex h-3 rounded-full overflow-hidden mt-2">
+                      {result.colors.map((c, i) => (
+                        <div
+                          key={i}
+                          className="flex-1"
+                          style={{ backgroundColor: c.hex }}
+                        />
+                      ))}
+                    </div>
+                  )}
                 </div>
               </motion.div>
             )}
@@ -319,7 +434,7 @@ function AnalyseContent() {
           >
             <Sofa size={16} className="text-[#0984E3]" />
             <span className="flex-1 text-sm font-bold text-[#1A1A2E]">Meubel matches</span>
-            <span className="text-xs text-[#9CA3AF] mr-1">{MOCK_RESULT.furniture.length}</span>
+            <span className="text-xs text-[#9CA3AF] mr-1">{result.furniture.length}</span>
             {expandedSection === 'furniture' ? (
               <ChevronUp size={14} className="text-[#9CA3AF]" />
             ) : (
@@ -335,7 +450,7 @@ function AnalyseContent() {
                 className="overflow-hidden"
               >
                 <div className="px-4 pb-4 space-y-2">
-                  {MOCK_RESULT.furniture.map((f, i) => (
+                  {result.furniture.map((f, i) => (
                     <div
                       key={i}
                       className="flex items-center justify-between py-2 border-b border-[#F3F4F6] last:border-0"
@@ -343,12 +458,10 @@ function AnalyseContent() {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-[#1A1A2E]">{f.item}</p>
                         <p className="text-xs text-[#6B7280] mt-0.5">{f.match}</p>
+                        <p className="text-[11px] text-[#9CA3AF] mt-0.5">{f.store} &middot; {f.material}</p>
                       </div>
                       <div className="text-right flex-shrink-0 ml-3">
-                        <p className="text-sm font-bold text-[#0984E3]">{'\u20AC'}{f.price}</p>
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#D5F5E3] text-[#27AE60]">
-                          {f.matchScore}%
-                        </span>
+                        <p className="text-sm font-bold text-[#0984E3]">{'\u20AC'}{f.price.toFixed(2)}</p>
                       </div>
                     </div>
                   ))}
@@ -386,19 +499,15 @@ function AnalyseContent() {
                 className="overflow-hidden"
               >
                 <div className="px-4 pb-4 space-y-2">
-                  {MOCK_RESULT.materials.map((m, i) => (
+                  {result.materials.map((m, i) => (
                     <div
                       key={i}
                       className="flex items-center justify-between py-2 border-b border-[#F3F4F6] last:border-0"
                     >
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-[#1A1A2E]">{m.type}</p>
-                        <p className="text-xs text-[#6B7280] mt-0.5">{m.suggestion}</p>
-                        <p className="text-[11px] text-[#9CA3AF] mt-0.5">{m.store}</p>
+                        <p className="text-xs text-[#6B7280] mt-0.5">{m.description}</p>
                       </div>
-                      <span className="text-sm font-bold text-[#0984E3] flex-shrink-0 ml-3">
-                        {'\u20AC'}{m.price.toFixed(2)}
-                      </span>
                     </div>
                   ))}
                 </div>
@@ -407,29 +516,111 @@ function AnalyseContent() {
           </AnimatePresence>
         </motion.div>
 
+        {/* Lighting */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.18 }}
+          className="bg-white rounded-2xl border border-[#E5E7EB] overflow-hidden"
+        >
+          <button
+            onClick={() => toggleSection('lighting')}
+            className="flex items-center gap-2 w-full p-4 text-left"
+          >
+            <Lightbulb size={16} className="text-[#0984E3]" />
+            <span className="flex-1 text-sm font-bold text-[#1A1A2E]">Verlichting</span>
+            {expandedSection === 'lighting' ? (
+              <ChevronUp size={14} className="text-[#9CA3AF]" />
+            ) : (
+              <ChevronDown size={14} className="text-[#9CA3AF]" />
+            )}
+          </button>
+          <AnimatePresence>
+            {expandedSection === 'lighting' && (
+              <motion.div
+                initial={{ height: 0 }}
+                animate={{ height: 'auto' }}
+                exit={{ height: 0 }}
+                className="overflow-hidden"
+              >
+                <div className="px-4 pb-4">
+                  <p className="text-sm font-medium text-[#1A1A2E]">{result.lighting.type}</p>
+                  <p className="text-xs text-[#6B7280] mt-1">{result.lighting.description}</p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.div>
+
+        {/* How to recreate */}
+        {result.howToRecreate.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="bg-white rounded-2xl border border-[#E5E7EB] overflow-hidden"
+          >
+            <button
+              onClick={() => toggleSection('howto')}
+              className="flex items-center gap-2 w-full p-4 text-left"
+            >
+              <ListChecks size={16} className="text-[#0984E3]" />
+              <span className="flex-1 text-sm font-bold text-[#1A1A2E]">Hoe na te maken</span>
+              {expandedSection === 'howto' ? (
+                <ChevronUp size={14} className="text-[#9CA3AF]" />
+              ) : (
+                <ChevronDown size={14} className="text-[#9CA3AF]" />
+              )}
+            </button>
+            <AnimatePresence>
+              {expandedSection === 'howto' && (
+                <motion.div
+                  initial={{ height: 0 }}
+                  animate={{ height: 'auto' }}
+                  exit={{ height: 0 }}
+                  className="overflow-hidden"
+                >
+                  <div className="px-4 pb-4 space-y-2">
+                    {result.howToRecreate.map((step, i) => (
+                      <div key={i} className="flex gap-3 py-1">
+                        <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[#0984E3]/10 text-[#0984E3] flex items-center justify-center text-xs font-bold">
+                          {i + 1}
+                        </span>
+                        <p className="text-sm text-[#1A1A2E] pt-0.5">{step}</p>
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        )}
+
         {/* Total estimate */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
+          transition={{ delay: 0.25 }}
           className="bg-white rounded-2xl border border-[#E5E7EB] p-4 flex items-center justify-between"
         >
           <span className="text-sm font-bold text-[#1A1A2E]">Geschatte totaalkosten</span>
-          <span className="text-xl font-bold text-[#0984E3]">~{'\u20AC'}{MOCK_RESULT.totalEstimate}</span>
+          <span className="text-xl font-bold text-[#0984E3]">~{'\u20AC'}{result.totalEstimate.toFixed(2)}</span>
         </motion.div>
 
         {/* Shop button */}
-        <motion.button
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.25 }}
-          onClick={() => setPhase('shop')}
-          className="flex items-center justify-center gap-2 w-full px-4 py-3.5 rounded-xl text-white text-sm font-medium active:scale-[0.98] transition-transform"
-          style={{ background: 'linear-gradient(135deg, #0984E3, #74B9FF)' }}
-        >
-          <ShoppingCart size={18} />
-          Bekijk in winkels
-        </motion.button>
+        {shopItems.length > 0 && (
+          <motion.button
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            onClick={() => setPhase('shop')}
+            className="flex items-center justify-center gap-2 w-full px-4 py-3.5 rounded-xl text-white text-sm font-medium active:scale-[0.98] transition-transform"
+            style={{ background: 'linear-gradient(135deg, #0984E3, #74B9FF)' }}
+          >
+            <ShoppingCart size={18} />
+            Bekijk in winkels
+          </motion.button>
+        )}
       </div>
     </div>
   );

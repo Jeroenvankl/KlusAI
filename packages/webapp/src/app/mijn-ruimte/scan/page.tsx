@@ -5,8 +5,9 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import PageHeader from '@/components/ui/PageHeader';
 import ImageUpload from '@/components/paint/ImageUpload';
-import { ScanLine, ArrowLeft, ChevronLeft, ChevronRight, Check } from 'lucide-react';
+import { ScanLine, ArrowLeft, ChevronLeft, ChevronRight, Check, AlertTriangle } from 'lucide-react';
 import clsx from 'clsx';
+import { analyzeRoom } from '@/lib/api-client';
 
 const SCAN_STEPS = [
   { title: 'Overzichtsfoto', hint: 'Maak een foto van de hele ruimte' },
@@ -20,6 +21,7 @@ export default function ScanPage() {
   const [photos, setPhotos] = useState<(string | null)[]>([null, null, null, null]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isDone, setIsDone] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleImageSelect = useCallback(
     (_file: File, dataUrl: string) => {
@@ -40,12 +42,35 @@ export default function ScanPage() {
     });
   }, [step]);
 
-  const handleFinish = () => {
+  const handleFinish = async () => {
     setIsProcessing(true);
-    setTimeout(() => {
+    setError(null);
+
+    // Find the first captured photo
+    const firstPhoto = photos.find(Boolean);
+    if (!firstPhoto) {
+      setIsProcessing(false);
+      return;
+    }
+
+    try {
+      // Convert data URL to File
+      const res = await fetch(firstPhoto);
+      const blob = await res.blob();
+      const file = new File([blob], 'room-scan.jpg', { type: blob.type || 'image/jpeg' });
+
+      // Call the real API
+      const result = await analyzeRoom(file);
+
+      // Store analysis result in sessionStorage
+      sessionStorage.setItem('klusai-room-analysis', JSON.stringify(result));
+
       setIsProcessing(false);
       setIsDone(true);
-    }, 2500);
+    } catch (err) {
+      setIsProcessing(false);
+      setError(err instanceof Error ? err.message : 'Er ging iets mis bij het analyseren van de ruimte.');
+    }
   };
 
   const progress = ((step + 1) / SCAN_STEPS.length) * 100;
@@ -114,6 +139,52 @@ export default function ScanPage() {
           <p className="text-xs text-[#6B7280] text-center max-w-xs px-4">
             AI detecteert muren, ramen, deuren en berekent afmetingen
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div>
+        <PageHeader
+          title="Analyse mislukt"
+          subtitle="Er ging iets mis"
+          icon={ScanLine}
+          gradient={['#EF4444', '#F87171']}
+        />
+        <div className="px-4 md:px-8 pb-8">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="flex flex-col items-center gap-4 py-12"
+          >
+            <div className="w-20 h-20 rounded-full bg-red-100 flex items-center justify-center">
+              <AlertTriangle size={36} className="text-[#EF4444]" />
+            </div>
+            <div className="text-center">
+              <p className="text-lg font-bold text-[#1A1A2E]">Analyse mislukt</p>
+              <p className="text-sm text-[#6B7280] mt-1 max-w-xs">{error}</p>
+            </div>
+            <div className="flex gap-3 mt-4">
+              <button
+                onClick={() => {
+                  setError(null);
+                  setStep(0);
+                }}
+                className="px-5 py-2.5 rounded-xl text-white text-sm font-medium"
+                style={{ background: 'linear-gradient(135deg, #00B894, #55E6C1)' }}
+              >
+                Opnieuw proberen
+              </button>
+              <Link
+                href="/mijn-ruimte"
+                className="px-5 py-2.5 rounded-xl text-sm font-medium border border-[#E5E7EB] text-[#6B7280] hover:bg-[#F3F4F6] transition-colors"
+              >
+                Terug
+              </Link>
+            </div>
+          </motion.div>
         </div>
       </div>
     );

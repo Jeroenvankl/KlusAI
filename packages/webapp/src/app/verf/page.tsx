@@ -75,6 +75,8 @@ export default function VerfPage() {
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [allColors, setAllColors] = useState<DisplayColor[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const [brands, setBrands] = useState<string[]>([]);
   const { totalItems } = useCart();
 
@@ -82,7 +84,7 @@ export default function VerfPage() {
     let cancelled = false;
     async function load() {
       try {
-        const colors = await getAllColors({ limit: 300 });
+        const colors = await getAllColors({ limit: 50 });
         if (!cancelled) {
           const mapped = colors.map((c: PaintColor) => ({
             hex: c.hex_code,
@@ -91,6 +93,7 @@ export default function VerfPage() {
             collection: c.collection,
           }));
           setAllColors(mapped);
+          setHasMore(colors.length >= 50);
           const uniqueBrands = Array.from(new Set(mapped.map((c: DisplayColor) => c.brand)));
           setBrands(uniqueBrands);
           setIsLoading(false);
@@ -99,6 +102,7 @@ export default function VerfPage() {
         if (!cancelled) {
           setAllColors(FALLBACK_COLORS);
           setBrands(['Flexa', 'Sikkens', 'Gamma Huismerk']);
+          setHasMore(false);
           setIsLoading(false);
         }
       }
@@ -106,6 +110,28 @@ export default function VerfPage() {
     load();
     return () => { cancelled = true; };
   }, []);
+
+  const loadMore = async () => {
+    if (isLoadingMore || !hasMore) return;
+    setIsLoadingMore(true);
+    try {
+      const colors = await getAllColors({ limit: 300 });
+      const mapped = colors.map((c: PaintColor) => ({
+        hex: c.hex_code,
+        name: c.name,
+        brand: c.brand,
+        collection: c.collection,
+      }));
+      setAllColors(mapped);
+      const uniqueBrands = Array.from(new Set(mapped.map((c: DisplayColor) => c.brand)));
+      setBrands(uniqueBrands);
+      setHasMore(false);
+    } catch {
+      // keep existing colors
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
 
   const filteredColors = useMemo(() => {
     return allColors.filter((c) => {
@@ -275,6 +301,18 @@ export default function VerfPage() {
                 ))}
               </motion.div>
             </AnimatePresence>
+          )}
+
+          {!isLoading && hasMore && (
+            <div className="flex justify-center mt-4">
+              <button
+                onClick={loadMore}
+                disabled={isLoadingMore}
+                className="px-6 py-2.5 rounded-xl text-sm font-medium bg-white border border-[#E5E7EB] text-[#1A1A2E] hover:bg-[#F3F4F6] transition-colors disabled:opacity-50"
+              >
+                {isLoadingMore ? 'Laden...' : 'Alle kleuren laden'}
+              </button>
+            </div>
           )}
 
           {!isLoading && filteredColors.length === 0 && (

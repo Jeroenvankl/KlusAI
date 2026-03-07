@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState, useEffect } from 'react';
+import { Suspense, useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -16,8 +16,11 @@ import {
   ChevronDown,
   ChevronUp,
   Sparkles,
+  AlertTriangle,
+  RotateCcw,
 } from 'lucide-react';
 import { DESIGN_STYLES } from '@/lib/constants';
+import { suggestDesign } from '@/lib/api-client';
 import type { DesignStyle, DesignSuggestionResponse } from '@/types/api';
 
 export default function ResultaatPage() {
@@ -28,44 +31,6 @@ export default function ResultaatPage() {
   );
 }
 
-// Placeholder data matching the mobile DesignResultScreen + DesignDetailScreen
-function getPlaceholderSuggestion(style: DesignStyle): DesignSuggestionResponse {
-  return {
-    style: DESIGN_STYLES[style]?.label || style,
-    description: `Een ${DESIGN_STYLES[style]?.label || style} ontwerp dat rust en stijl combineert met functionele elementen.`,
-    color_palette: [
-      { role: 'Basistint', hex_code: '#F5F0E8', paint_name: 'Warm Wit', paint_brand: 'Flexa' },
-      { role: 'Accent', hex_code: '#A67B5B', paint_name: 'Brave Ground', paint_brand: 'Flexa' },
-      { role: 'Secundair', hex_code: '#8B9E8B', paint_name: 'Salie', paint_brand: 'Sikkens' },
-      { role: 'Plafond', hex_code: '#FFFFFF', paint_name: 'Stralend Wit', paint_brand: 'Flexa' },
-    ],
-    furniture_changes: [
-      { action: 'Vervangen', item: 'Zitbank', suggestion: 'Lage bank in lichtgrijs linnen', product_name: 'KIVIK 3-zits', store: 'IKEA', estimated_price: 599 },
-      { action: 'Toevoegen', item: 'Salontafel', suggestion: 'Ronde eiken tafel met dunne poten', product_name: 'STOCKHOLM', store: 'IKEA', estimated_price: 249 },
-      { action: 'Toevoegen', item: 'Vloerkleed', suggestion: 'Jute kleed in naturel tinten', product_name: 'LOHALS', store: 'IKEA', estimated_price: 129 },
-    ],
-    lighting_suggestions: [
-      'Staande lamp met warme lichtkleur (2700K)',
-      'Dimbare plafondlamp voor sfeerverlichting',
-      'Accenten met LED-strips achter meubels',
-    ],
-    accessories: [
-      { type: 'Vaas', description: 'Keramische vaas in aardetinten', product_name: 'Handgemaakte vaas', store: 'Sostrene Grene', estimated_price: 29 },
-      { type: 'Kussens', description: 'Linnen kussens in neutrale kleuren', product_name: 'VIGDIS kussenhoezen', store: 'IKEA', estimated_price: 15 },
-      { type: 'Plant', description: 'Bamboe plantenpot met groene plant', product_name: 'FEJKA kunstplant', store: 'IKEA', estimated_price: 19 },
-    ],
-    budget_breakdown: [
-      { category: 'Verf & afwerking', description: '4 blikken verf + primer', estimated_cost: 185 },
-      { category: 'Meubels', description: 'Bank, tafel, kleed', estimated_cost: 977 },
-      { category: 'Verlichting', description: '2 lampen + LED', estimated_cost: 210 },
-      { category: 'Accessoires', description: 'Vazen, kussens, planten', estimated_cost: 165 },
-      { category: 'Textiel', description: 'Gordijnen en plaids', estimated_cost: 120 },
-    ],
-    total_estimated_cost: 1657,
-    mood_keywords: ['rustig', 'warm', 'naturel', 'licht'],
-  };
-}
-
 function ResultaatContent() {
   const searchParams = useSearchParams();
   const style = (searchParams.get('style') as DesignStyle) || 'japandi';
@@ -73,16 +38,29 @@ function ResultaatContent() {
 
   const [suggestion, setSuggestion] = useState<DesignSuggestionResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [expandedSection, setExpandedSection] = useState<string | null>('colors');
 
-  useEffect(() => {
-    // Simulate API call — replace with real suggestDesign() when backend is connected
-    const timer = setTimeout(() => {
-      setSuggestion(getPlaceholderSuggestion(style));
+  const fetchDesign = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    setSuggestion(null);
+
+    try {
+      const result = await suggestDesign({ style });
+      setSuggestion(result);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Er ging iets mis bij het genereren van het ontwerp.';
+      setError(message);
+    } finally {
       setIsLoading(false);
-    }, 1200);
-    return () => clearTimeout(timer);
+    }
   }, [style]);
+
+  useEffect(() => {
+    fetchDesign();
+  }, [fetchDesign]);
 
   const toggleSection = (section: string) => {
     setExpandedSection(expandedSection === section ? null : section);
@@ -102,6 +80,38 @@ function ResultaatContent() {
           <p className="text-sm font-medium text-[#6B7280]">
             AI genereert je {styleInfo?.label || style} ontwerp...
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div>
+        <PageHeader title="Ontwerp & Inspiratie" icon={Lightbulb} gradient={['#6C5CE7', '#A29BFE']} />
+        <div className="flex flex-col items-center justify-center py-24 gap-4 px-4">
+          <div className="w-14 h-14 rounded-full bg-red-50 flex items-center justify-center">
+            <AlertTriangle size={28} className="text-red-500" />
+          </div>
+          <div className="text-center space-y-1">
+            <p className="text-sm font-bold text-[#1A1A2E]">Ontwerp kon niet worden geladen</p>
+            <p className="text-xs text-[#6B7280] max-w-xs">{error}</p>
+          </div>
+          <button
+            onClick={fetchDesign}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white transition-colors"
+            style={{ background: 'linear-gradient(135deg, #6C5CE7, #A29BFE)' }}
+          >
+            <RotateCcw size={14} />
+            Opnieuw proberen
+          </button>
+          <Link
+            href="/ontwerp"
+            className="inline-flex items-center gap-1.5 text-sm text-[#6B7280] hover:text-[#1A1A2E] transition-colors"
+          >
+            <ArrowLeft size={16} />
+            Terug naar stijlen
+          </Link>
         </div>
       </div>
     );

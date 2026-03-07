@@ -80,7 +80,7 @@ export interface RoomAnalysisResponse {
 // ---- Design ----
 
 export interface DesignRequest {
-  room_id: number;
+  room_id?: number;
   style: DesignStyle;
   budget_min?: number | null;
   budget_max?: number | null;

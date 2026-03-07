@@ -20,21 +20,30 @@ async def suggest_design(
     session: AsyncSession = Depends(get_session),
 ):
     """Get AI-powered design suggestions for a room."""
-    # Fetch the room analysis
-    result = await session.execute(
-        select(Room).where(Room.id == body.room_id)
-    )
-    room = result.scalar_one_or_none()
-    if room is None:
-        raise HTTPException(status_code=404, detail="Kamer niet gevonden")
-    if room.analysis_data is None:
-        raise HTTPException(status_code=400, detail="Kamer is nog niet geanalyseerd")
+    room_analysis = None
+
+    if body.room_id is not None:
+        result = await session.execute(
+            select(Room).where(Room.id == body.room_id)
+        )
+        room = result.scalar_one_or_none()
+        if room is None:
+            raise HTTPException(status_code=404, detail="Kamer niet gevonden")
+        if room.analysis_data is None:
+            raise HTTPException(status_code=400, detail="Kamer is nog niet geanalyseerd")
+        room_analysis = room.analysis_data
+    else:
+        room_analysis = {
+            "room_type": "woonkamer",
+            "style_assessment": "standaard Nederlandse woning",
+            "estimated_dimensions": {"width_m": 4.0, "length_m": 5.0, "height_m": 2.6},
+        }
 
     claude = request.app.state.claude
     engine = DesignEngine(claude)
 
     suggestion = engine.suggest(
-        room_analysis=room.analysis_data,
+        room_analysis=room_analysis,
         style=body.style,
         budget_min=body.budget_min,
         budget_max=body.budget_max,
